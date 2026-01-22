@@ -43,11 +43,7 @@ const firebaseConfig = {
   appId: "XXXX"
 };
 
-// ⏳ initial loading state
-qs('auth').innerHTML = '⏳';
-qs('auth').style.display = 'block';
-qs('lock').style.display = 'none';
-qs('app').style.display = 'none';
+// ⏳ initial loading state will be set AFTER helpers are defined
 
 const fbApp = initializeApp(firebaseConfig);
 const auth = getAuth(fbApp);
@@ -59,6 +55,12 @@ const dec = new TextDecoder();
 let key = null;
 
 const qs = id => document.getElementById(id);
+
+// ⏳ initial loading state
+qs('auth').innerHTML = '⏳';
+qs('auth').style.display = 'block';
+qs('lock').style.display = 'none';
+qs('app').style.display = 'none';
 const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
 const fromB64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 
