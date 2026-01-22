@@ -241,8 +241,10 @@ async function loadList() {
   const data = await loadVault(auth.currentUser.uid);
   const items = await decryptJSON(data.vault);
   qs('list').innerHTML = '';
-  items.forEach((i, idx) => {
+
+  items.forEach((i) => {
     const li = document.createElement('li');
+
     const span = document.createElement('span');
     span.textContent = `🗒️ ${i.title}: ••••••••`;
 
@@ -261,7 +263,6 @@ async function loadList() {
     li.appendChild(span);
     li.appendChild(btn);
     qs('list').appendChild(li);
-  });
   });
 }
 
