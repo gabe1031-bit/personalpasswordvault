@@ -43,6 +43,12 @@ const firebaseConfig = {
   appId: "XXXX"
 };
 
+// ⏳ initial loading state
+qs('auth').innerHTML = '⏳';
+qs('auth').style.display = 'block';
+qs('lock').style.display = 'none';
+qs('app').style.display = 'none';
+
 const fbApp = initializeApp(firebaseConfig);
 const auth = getAuth(fbApp);
 const db = getFirestore(fbApp);
@@ -99,7 +105,7 @@ async function saveVault(uid, data) {
 }
 
 /* ================= AUTH UI ================= */
-showAuth();
+
 
 function showAuth() {
   qs('auth').innerHTML = `
