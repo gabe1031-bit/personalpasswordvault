@@ -35,14 +35,13 @@ import {
 
 // 🔴 REPLACE WITH YOUR OWN CONFIG
 const firebaseConfig = {
-  apiKey: "AIzaSyA9JTxr9EDqf_zxsa9YauJ_sS7k4D-3yXU",
-  authDomain: "gabepasswordvault.firebaseapp.com",
-  projectId: "gabepasswordvault",
-  storageBucket: "gabepasswordvault.firebasestorage.app",
-  messagingSenderId: "893433572830",
-  appId: "1:893433572830:web:e4d656993027152ff0c14f"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "XXXX",
+  appId: "XXXX"
 };
-
 
 const fbApp = initializeApp(firebaseConfig);
 const auth = getAuth(fbApp);
@@ -107,6 +106,7 @@ function showAuth() {
     <h2>👤 Account</h2>
     <input id="email" type="email" placeholder="Email" />
     <input id="pw" type="password" placeholder="Account Password" />
+    <button id="seePw">👁️</button>
     <button id="signup">🆕 Sign Up</button>
     <button id="login">🔑 Login</button>
   `;
@@ -116,6 +116,11 @@ function showAuth() {
 
   qs('signup').onclick = signup;
   qs('login').onclick = login;
+  let pwVisible = false;
+  qs('seePw').onclick = () => {
+    pwVisible = !pwVisible;
+    qs('pw').type = pwVisible ? 'text' : 'password';
+  };
 }
 
 async function signup() {
@@ -143,9 +148,9 @@ onAuthStateChanged(auth, async user => {
 function showSetup() {
   qs('lock').innerHTML = `
     <h2>🆕 Vault Setup</h2>
-    <input id="p1" type="password" placeholder="Password 1" />
-    <input id="p2" type="password" placeholder="Password 2" />
-    <input id="pin" type="password" placeholder="4-digit PIN" />
+    <input id="p1" type="password" placeholder="Password 1" /> <button id="seeP1">👁️</button>
+    <input id="p2" type="password" placeholder="Password 2" /> <button id="seeP2">👁️</button>
+    <input id="pin" type="password" placeholder="4-digit PIN" /> <button id="seePIN">👁️</button>
     <input id="q1" type="text" placeholder="🧪 First science fair project?" />
     <input id="q2" type="text" placeholder="🧩 First chrome extension?" />
     <button id="create">✅ Create Vault</button>
@@ -153,6 +158,10 @@ function showSetup() {
   qs('auth').style.display = 'none';
   qs('lock').style.display = 'block';
   qs('create').onclick = setupVault;
+  let v1=false,v2=false,vp=false;
+  qs('seeP1').onclick=()=>{v1=!v1;qs('p1').type=v1?'text':'password'};
+  qs('seeP2').onclick=()=>{v2=!v2;qs('p2').type=v2?'text':'password'};
+  qs('seePIN').onclick=()=>{vp=!vp;qs('pin').type=vp?'text':'password'};
 }
 
 function showUnlock() {
@@ -168,6 +177,10 @@ function showUnlock() {
   qs('auth').style.display = 'none';
   qs('lock').style.display = 'block';
   qs('unlock').onclick = unlockVault;
+  let v1=false,v2=false,vp=false;
+  qs('seeP1').onclick=()=>{v1=!v1;qs('p1').type=v1?'text':'password'};
+  qs('seeP2').onclick=()=>{v2=!v2;qs('p2').type=v2?'text':'password'};
+  qs('seePIN').onclick=()=>{vp=!vp;qs('pin').type=vp?'text':'password'};
 }
 
 async function setupVault() {
@@ -222,10 +235,27 @@ async function loadList() {
   const data = await loadVault(auth.currentUser.uid);
   const items = await decryptJSON(data.vault);
   qs('list').innerHTML = '';
-  items.forEach(i => {
+  items.forEach((i, idx) => {
     const li = document.createElement('li');
-    li.textContent = `🗒️ ${i.title}: ${i.value}`;
+    const span = document.createElement('span');
+    span.textContent = `🗒️ ${i.title}: ••••••••`;
+
+    const btn = document.createElement('button');
+    btn.textContent = '👁️';
+    btn.style.marginLeft = '8px';
+
+    let visible = false;
+    btn.onclick = () => {
+      visible = !visible;
+      span.textContent = visible
+        ? `🗒️ ${i.title}: ${i.value}`
+        : `🗒️ ${i.title}: ••••••••`;
+    };
+
+    li.appendChild(span);
+    li.appendChild(btn);
     qs('list').appendChild(li);
+  });
   });
 }
 
