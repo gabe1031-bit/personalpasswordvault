@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🔐 Vault</title>
+</head>
+<body>
+  <div id="auth"></div>
+
+  <div id="lock"></div>
+
+  <div id="app" style="display:none;">
+    <button id="lockBtn" style="position:fixed; top:12px; left:12px; font-size:20px;">🔒</button>
+    <button id="add" style="position:fixed; top:12px; right:12px; font-size:24px;">➕</button>
+    <ul id="list"></ul>
+  </div>
+
+<script type="module">
+/* ================= FIREBASE ================= */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  getDoc
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+// 🔴 REPLACE WITH YOUR OWN CONFIG
+const firebaseConfig = {
+  apiKey: "AIzaSyA9JTxr9EDqf_zxsa9YauJ_sS7k4D-3yXU",
+  authDomain: "gabepasswordvault.firebaseapp.com",
+  projectId: "gabepasswordvault",
+  storageBucket: "gabepasswordvault.firebasestorage.app",
+  messagingSenderId: "893433572830",
+  appId: "1:893433572830:web:e4d656993027152ff0c14f"
+};
+
+
+const fbApp = initializeApp(firebaseConfig);
+const auth = getAuth(fbApp);
+const db = getFirestore(fbApp);
+
+/* ================= CRYPTO ================= */
+const enc = new TextEncoder();
+const dec = new TextDecoder();
+let key = null;
+
+const qs = id => document.getElementById(id);
+const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const fromB64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+
+async function pbkdf2(input, salt, iterations = 150000, len = 32) {
+  const base = await crypto.subtle.importKey('raw', enc.encode(input), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations, hash: 'SHA-256' }, base, len * 8);
+  return new Uint8Array(bits);
+}
+
+async function deriveVaultKey(material) {
+  const base = await crypto.subtle.importKey('raw', material, 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: enc.encode('vault-key'), iterations: 200000, hash: 'SHA-256' },
+    base,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+
+async function encryptJSON(obj) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(JSON.stringify(obj)));
+  return { iv: b64(iv), data: b64(ct) };
+}
+
+async function decryptJSON(payload) {
+  const iv = fromB64(payload.iv);
+  const data = fromB64(payload.data);
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data);
+  return JSON.parse(dec.decode(pt));
+}
+
+/* ================= FIRESTORE ================= */
+async function loadVault(uid) {
+  const ref = doc(db, 'vaults', uid);
+  const snap = await getDoc(ref);
+  return snap.exists() ? snap.data() : null;
+}
+
+async function saveVault(uid, data) {
+  const ref = doc(db, 'vaults', uid);
+  await setDoc(ref, data);
+}
+
+/* ================= AUTH UI ================= */
+showAuth();
+
+function showAuth() {
+  qs('auth').innerHTML = `
+    <h2>👤 Account</h2>
+    <input id="email" type="email" placeholder="Email" />
+    <input id="pw" type="password" placeholder="Account Password" />
+    <button id="signup">🆕 Sign Up</button>
+    <button id="login">🔑 Login</button>
+  `;
+  qs('auth').style.display = 'block';
+  qs('lock').style.display = 'none';
+  qs('app').style.display = 'none';
+
+  qs('signup').onclick = signup;
+  qs('login').onclick = login;
+}
+
+async function signup() {
+  const email = qs('email').value;
+  const pw = qs('pw').value;
+  if (!email || !pw) return alert('❌');
+  await createUserWithEmailAndPassword(auth, email, pw);
+}
+
+async function login() {
+  const email = qs('email').value;
+  const pw = qs('pw').value;
+  if (!email || !pw) return alert('❌');
+  await signInWithEmailAndPassword(auth, email, pw);
+}
+
+onAuthStateChanged(auth, async user => {
+  if (!user) return showAuth();
+
+  const existing = await loadVault(user.uid);
+  if (!existing) showSetup(); else showUnlock();
+});
+
+/* ================= SETUP / UNLOCK ================= */
+function showSetup() {
+  qs('lock').innerHTML = `
+    <h2>🆕 Vault Setup</h2>
+    <input id="p1" type="password" placeholder="Password 1" />
+    <input id="p2" type="password" placeholder="Password 2" />
+    <input id="pin" type="password" placeholder="4-digit PIN" />
+    <input id="q1" type="text" placeholder="🧪 First science fair project?" />
+    <input id="q2" type="text" placeholder="🧩 First chrome extension?" />
+    <button id="create">✅ Create Vault</button>
+  `;
+  qs('auth').style.display = 'none';
+  qs('lock').style.display = 'block';
+  qs('create').onclick = setupVault;
+}
+
+function showUnlock() {
+  qs('lock').innerHTML = `
+    <h2>🔐 Unlock Vault</h2>
+    <input id="p1" type="password" placeholder="Password 1" />
+    <input id="p2" type="password" placeholder="Password 2" />
+    <input id="pin" type="password" placeholder="4-digit PIN" />
+    <input id="q1" type="text" placeholder="🧪 First science fair project?" />
+    <input id="q2" type="text" placeholder="🧩 First chrome extension?" />
+    <button id="unlock">🔓 Unlock</button>
+  `;
+  qs('auth').style.display = 'none';
+  qs('lock').style.display = 'block';
+  qs('unlock').onclick = unlockVault;
+}
+
+async function setupVault() {
+  const p1 = qs('p1').value;
+  const p2 = qs('p2').value;
+  const pin = qs('pin').value;
+  const q1 = qs('q1').value.trim();
+  const q2 = qs('q2').value.trim();
+  if (!p1 || !p2 || !/^\d{4}$/.test(pin) || !q1 || !q2) return alert('❌');
+
+  const material = `${p1}|${p2}|${pin}|${q1}|${q2}`;
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const verifier = await pbkdf2(material, salt);
+  const km = await pbkdf2(material, enc.encode('key-material'));
+  key = await deriveVaultKey(km);
+
+  const payload = {
+    salt: b64(salt),
+    verifier: b64(verifier),
+    vault: await encryptJSON([])
+  };
+
+  await saveVault(auth.currentUser.uid, payload);
+  showApp();
+}
+
+async function unlockVault() {
+  const p1 = qs('p1').value;
+  const p2 = qs('p2').value;
+  const pin = qs('pin').value;
+  const q1 = qs('q1').value.trim();
+  const q2 = qs('q2').value.trim();
+  const data = await loadVault(auth.currentUser.uid);
+
+  const material = `${p1}|${p2}|${pin}|${q1}|${q2}`;
+  const verifier = await pbkdf2(material, fromB64(data.salt));
+  if (b64(verifier) !== data.verifier) return alert('❌');
+
+  const km = await pbkdf2(material, enc.encode('key-material'));
+  key = await deriveVaultKey(km);
+  showApp();
+}
+
+/* ================= VAULT UI ================= */
+async function showApp() {
+  qs('lock').style.display = 'none';
+  qs('app').style.display = 'block';
+  loadList();
+}
+
+async function loadList() {
+  const data = await loadVault(auth.currentUser.uid);
+  const items = await decryptJSON(data.vault);
+  qs('list').innerHTML = '';
+  items.forEach(i => {
+    const li = document.createElement('li');
+    li.textContent = `🗒️ ${i.title}: ${i.value}`;
+    qs('list').appendChild(li);
+  });
+}
+
+qs('add').onclick = async () => {
+  const title = prompt('🗂️ Title');
+  if (!title) return;
+  const value = prompt('🔑 Password / Note');
+  const data = await loadVault(auth.currentUser.uid);
+  const items = await decryptJSON(data.vault);
+  items.push({ title, value });
+  data.vault = await encryptJSON(items);
+  await saveVault(auth.currentUser.uid, data);
+  loadList();
+};
+
+qs('lockBtn').onclick = () => {
+  key = null;
+  showUnlock();
+};
+</script>
+</body>
+</html>
